@@ -31,10 +31,12 @@ In cPanel:
 git clone https://github.com/fherbert/cert-manager-webhook-cpanel
 cd cert-manager-webhook-cpanel
 
-# Build and push the Docker image (adjust registry as needed)
+# Option 1: Use pre-built image from GitHub Container Registry
+# Update deploy/manifests/deployment.yaml to use:
+# image: ghcr.io/fherbert/cert-manager-webhook-cpanel:latest
+
+# Option 2: Build your own image
 task docker-build
-# Or with custom registry:
-# REGISTRY=your-registry.com task docker-push
 
 # Deploy to Kubernetes
 kubectl apply -f deploy/manifests/

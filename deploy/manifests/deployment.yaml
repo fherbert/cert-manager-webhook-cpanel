@@ -18,7 +18,7 @@ spec:
       serviceAccountName: cert-manager-webhook-cpanel
       containers:
         - name: webhook
-          image: cert-manager-webhook-cpanel:latest
+          image: ghcr.io/fherbert/cert-manager-webhook-cpanel:latest
           imagePullPolicy: IfNotPresent
           args:
             - --tls-cert-file=/tls/tls.crt

@@ -9,26 +9,31 @@ This guide will get you up and running with cert-manager webhook for cPanel DNS 
 - cPanel account with API access
 - Docker (for building the image)
 
-## Step 1: Build and Push the Docker Image
+## Step 1: Choose Your Image Source
+
+**Option A: Use Pre-built Image (Recommended)**
+
+The deployment manifests are already configured to use the latest image from GitHub Container Registry:
+
+```yaml
+image: ghcr.io/fherbert/cert-manager-webhook-cpanel:latest
+```
+
+No build required! Skip to Step 2.
+
+**Option B: Build Your Own Image**
 
 ```bash
 cd cert-manager-webhook-cpanel
 
 # Build the image
-docker build -t your-registry.com/cert-manager-webhook-cpanel:v1.0.0 .
+docker build -t ghcr.io/fherbert/cert-manager-webhook-cpanel:custom .
 
-# Push to your registry
-docker push your-registry.com/cert-manager-webhook-cpanel:v1.0.0
+# Push to GHCR (requires authentication)
+docker push ghcr.io/fherbert/cert-manager-webhook-cpanel:custom
 ```
 
-Update `deploy/manifests/deployment.yaml` to use your image:
-
-```yaml
-spec:
-  containers:
-    - name: webhook
-      image: your-registry.com/cert-manager-webhook-cpanel:v1.0.0
-```
+Then update `deploy/manifests/deployment.yaml` to use your custom tag.
 
 ## Step 2: Get Your cPanel API Token
 
