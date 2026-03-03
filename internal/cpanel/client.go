@@ -48,6 +48,7 @@ func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
 	params := url.Values{}
 	params.Set("domain", zone)
 	params.Set("name", name)
+	params.Set("type", "TXT")
 	params.Set("txtdata", value)
 	params.Set("ttl", fmt.Sprintf("%d", ttl))
 
