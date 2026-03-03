@@ -45,17 +45,37 @@ type uapiResponse struct {
 }
 
 func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
-	params := url.Values{}
-	params.Set("domain", zone)
-	params.Set("name", name)
-	params.Set("type", "TXT")
-	params.Set("txtdata", value)
-	params.Set("ttl", fmt.Sprintf("%d", ttl))
+	serial, err := c.getZoneSerial(zone)
+	if err != nil {
+		return fmt.Errorf("failed to get zone serial: %w", err)
+	}
 
-	return c.callUAPI("DNS", "add_zone_record", params)
+	record := map[string]interface{}{
+		"dname":       name,
+		"ttl":         ttl,
+		"record_type": "TXT",
+		"data":        []string{value},
+	}
+
+	recordJSON, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("failed to marshal record: %w", err)
+	}
+
+	params := url.Values{}
+	params.Set("zone", zone)
+	params.Set("serial", fmt.Sprintf("%d", serial))
+	params.Set("add", string(recordJSON))
+
+	return c.callUAPI("DNS", "mass_edit_zone", params)
 }
 
 func (c *Client) DeleteTXTRecord(zone, name, value string) error {
+	serial, err := c.getZoneSerial(zone)
+	if err != nil {
+		return fmt.Errorf("failed to get zone serial: %w", err)
+	}
+
 	records, err := c.fetchZoneRecords(zone, name, "TXT")
 	if err != nil {
 		return err
@@ -66,43 +86,72 @@ func (c *Client) DeleteTXTRecord(zone, name, value string) error {
 		if !ok {
 			continue
 		}
-		
+
 		if strings.TrimSpace(txtData) == strings.TrimSpace(value) {
-			line, ok := record["line"].(float64)
+			lineIndex, ok := record["line_index"].(float64)
 			if !ok {
 				continue
 			}
-			
+
 			params := url.Values{}
-			params.Set("domain", zone)
-			params.Set("line", fmt.Sprintf("%.0f", line))
-			
-			return c.callUAPI("DNS", "remove_zone_record", params)
+			params.Set("zone", zone)
+			params.Set("serial", fmt.Sprintf("%d", serial))
+			params.Set("remove", fmt.Sprintf("%.0f", lineIndex))
+
+			return c.callUAPI("DNS", "mass_edit_zone", params)
 		}
 	}
 
 	return nil
 }
 
+func (c *Client) getZoneSerial(zone string) (int, error) {
+	params := url.Values{}
+	params.Set("zone", zone)
+
+	resp, err := c.callUAPIWithResponse("DNS", "parse_zone", params)
+	if err != nil {
+		return 0, err
+	}
+
+	serial, ok := resp.Result.Data["serial"].(float64)
+	if !ok {
+		return 0, fmt.Errorf("serial not found in response")
+	}
+
+	return int(serial), nil
+}
+
 func (c *Client) fetchZoneRecords(zone, name, recordType string) ([]map[string]interface{}, error) {
 	params := url.Values{}
-	params.Set("domain", zone)
-	params.Set("name", name)
-	params.Set("type", recordType)
+	params.Set("zone", zone)
 
-	resp, err := c.callUAPIWithResponse("DNS", "fetch_zone_records", params)
+	resp, err := c.callUAPIWithResponse("DNS", "parse_zone", params)
 	if err != nil {
 		return nil, err
 	}
 
-	data, ok := resp.Result.Data["data"].([]interface{})
+	parsed, ok := resp.Result.Data["parsed"].([]interface{})
 	if !ok {
 		return []map[string]interface{}{}, nil
 	}
 
-	records := make([]map[string]interface{}, 0, len(data))
-	for _, item := range data {
-		if record, ok := item.(map[string]interface{}); ok {
+	records := make([]map[string]interface{}, 0)
+	for _, item := range parsed {
+		record, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		recType, _ := record["record_type"].(string)
+		recName, _ := record["dname"].(string)
+
+		if recType == recordType && (name == "" || strings.HasPrefix(recName, name)) {
+			if data, ok := record["data"].([]interface{}); ok && len(data) > 0 {
+				if txtData, ok := data[0].(string); ok {
+					record["txtdata"] = txtData
+				}
+			}
 			records = append(records, record)
 		}
 	}
@@ -143,7 +192,7 @@ func (c *Client) callUAPIWithResponse(module, function string, params url.Values
 
 	var apiResp uapiResponse
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("failed to decode response: %w, body: %s", err, string(body))
 	}
 
 	if apiResp.Result.Status != 1 {
@@ -151,7 +200,8 @@ func (c *Client) callUAPIWithResponse(module, function string, params url.Values
 		if len(apiResp.Result.Errors) > 0 {
 			errMsg = strings.Join(apiResp.Result.Errors, "; ")
 		}
-		return nil, fmt.Errorf("cPanel API error: %s", errMsg)
+		return nil, fmt.Errorf("cPanel API error: %s, status: %d, messages: %v, response body: %s",
+			errMsg, apiResp.Result.Status, apiResp.Result.Messages, string(body))
 	}
 
 	return &apiResp, nil
