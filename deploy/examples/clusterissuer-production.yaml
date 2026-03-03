@@ -16,6 +16,7 @@ spec:
           config:
             endpoint: "https://cpanel.example.com:2083"
             username: "cpanel_username"
+            zone: "example.com"
             apiTokenSecretRef:
               name: cpanel-api-token
               key: token

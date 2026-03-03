@@ -18,6 +18,7 @@ func TestLoadConfig(t *testing.T) {
 			config: `{
 				"endpoint": "https://cpanel.example.com:2083",
 				"username": "testuser",
+				"zone": "example.com",
 				"apiTokenSecretRef": {
 					"name": "cpanel-token",
 					"key": "token"
@@ -51,7 +52,20 @@ func TestLoadConfig(t *testing.T) {
 			name: "missing apiTokenSecretRef",
 			config: `{
 				"endpoint": "https://cpanel.example.com:2083",
-				"username": "testuser"
+				"username": "testuser",
+				"zone": "example.com"
+			}`,
+			wantErr: true,
+		},
+		{
+			name: "missing zone",
+			config: `{
+				"endpoint": "https://cpanel.example.com:2083",
+				"username": "testuser",
+				"apiTokenSecretRef": {
+					"name": "cpanel-token",
+					"key": "token"
+				}
 			}`,
 			wantErr: true,
 		},
@@ -78,30 +92,38 @@ func TestExtractZoneAndRecord(t *testing.T) {
 	solver := &CPanelDNSProviderSolver{}
 
 	tests := []struct {
+		name       string
 		fqdn       string
+		cfg        *CPanelDNSProviderConfig
 		wantZone   string
 		wantRecord string
 	}{
 		{
+			name:       "simple .com domain",
 			fqdn:       "_acme-challenge.example.com.",
+			cfg:        &CPanelDNSProviderConfig{Zone: "example.com"},
 			wantZone:   "example.com",
 			wantRecord: "_acme-challenge.example.com",
 		},
 		{
+			name:       "subdomain with .com",
 			fqdn:       "_acme-challenge.sub.example.com.",
+			cfg:        &CPanelDNSProviderConfig{Zone: "example.com"},
 			wantZone:   "example.com",
 			wantRecord: "_acme-challenge.sub.example.com",
 		},
 		{
-			fqdn:       "_acme-challenge.example.co.uk.",
-			wantZone:   "co.uk",
-			wantRecord: "_acme-challenge.example.co.uk",
+			name:       "multi-level TLD .org.nz",
+			fqdn:       "_acme-challenge.home-assistant.herbert.org.nz.",
+			cfg:        &CPanelDNSProviderConfig{Zone: "herbert.org.nz"},
+			wantZone:   "herbert.org.nz",
+			wantRecord: "_acme-challenge.home-assistant.herbert.org.nz",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.fqdn, func(t *testing.T) {
-			zone, record := solver.extractZoneAndRecord(tt.fqdn)
+		t.Run(tt.name, func(t *testing.T) {
+			zone, record := solver.extractZoneAndRecord(tt.fqdn, tt.cfg)
 
 			if zone != tt.wantZone {
 				t.Errorf("extractZoneAndRecord() zone = %v, want %v", zone, tt.wantZone)

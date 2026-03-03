@@ -23,6 +23,7 @@ type CPanelDNSProviderConfig struct {
 	Endpoint          string          `json:"endpoint"`
 	Username          string          `json:"username"`
 	APITokenSecretRef SecretReference `json:"apiTokenSecretRef"`
+	Zone              string          `json:"zone"`
 	TTL               *int            `json:"ttl,omitempty"`
 }
 
@@ -54,7 +55,7 @@ func (c *CPanelDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		Token:    token,
 	})
 
-	zone, recordName := c.extractZoneAndRecord(ch.ResolvedFQDN)
+	zone, recordName := c.extractZoneAndRecord(ch.ResolvedFQDN, cfg)
 
 	ttl := 300
 	if cfg.TTL != nil && *cfg.TTL > 0 {
@@ -90,7 +91,7 @@ func (c *CPanelDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 		Token:    token,
 	})
 
-	zone, recordName := c.extractZoneAndRecord(ch.ResolvedFQDN)
+	zone, recordName := c.extractZoneAndRecord(ch.ResolvedFQDN, cfg)
 
 	klog.V(2).Infof("Deleting TXT record: zone=%s, name=%s, value=%s", zone, recordName, ch.Key)
 
@@ -132,19 +133,9 @@ func (c *CPanelDNSProviderSolver) getAPIToken(cfg *CPanelDNSProviderConfig, name
 	return string(token), nil
 }
 
-func (c *CPanelDNSProviderSolver) extractZoneAndRecord(fqdn string) (string, string) {
+func (c *CPanelDNSProviderSolver) extractZoneAndRecord(fqdn string, cfg *CPanelDNSProviderConfig) (string, string) {
 	fqdn = strings.TrimSuffix(fqdn, ".")
-
-	parts := strings.Split(fqdn, ".")
-	if len(parts) < 2 {
-		return fqdn, fqdn
-	}
-
-	zone := strings.Join(parts[len(parts)-2:], ".")
-
-	recordName := fqdn
-
-	return zone, recordName
+	return cfg.Zone, fqdn
 }
 
 func loadConfig(cfgJSON *apiextensionsv1.JSON) (*CPanelDNSProviderConfig, error) {
@@ -163,6 +154,9 @@ func loadConfig(cfgJSON *apiextensionsv1.JSON) (*CPanelDNSProviderConfig, error)
 	}
 	if cfg.Username == "" {
 		return nil, fmt.Errorf("username is required")
+	}
+	if cfg.Zone == "" {
+		return nil, fmt.Errorf("zone is required")
 	}
 	if cfg.APITokenSecretRef.Name == "" || cfg.APITokenSecretRef.Key == "" {
 		return nil, fmt.Errorf("apiTokenSecretRef.name and apiTokenSecretRef.key are required")

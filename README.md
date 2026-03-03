@@ -71,6 +71,7 @@ spec:
           config:
             endpoint: "https://cpanel.example.com:2083"
             username: "cpanel_username"
+            zone: "example.com"
             apiTokenSecretRef:
               name: cpanel-api-token
               key: token
@@ -109,6 +110,7 @@ spec:
 |-------|----------|-------------|
 | `endpoint` | Yes | cPanel endpoint URL (e.g., `https://cpanel.example.com:2083`) |
 | `username` | Yes | cPanel username |
+| `zone` | Yes | DNS zone name (e.g., `example.com` or `herbert.org.nz`) |
 | `apiTokenSecretRef.name` | Yes | Kubernetes secret name containing API token |
 | `apiTokenSecretRef.key` | Yes | Key in secret containing the token |
 | `ttl` | No | DNS record TTL in seconds (default: 300) |
