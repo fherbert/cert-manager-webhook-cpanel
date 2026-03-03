@@ -1,0 +1,67 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: cert-manager-webhook-cpanel
+  IMAGE_TAG: latest
+  REGISTRY: ""
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  deps:
+    desc: Download Go dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  build:
+    desc: Build the webhook binary
+    cmds:
+      - go build -o webhook .
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
+
+  test-coverage:
+    desc: Run tests with coverage
+    cmds:
+      - go test -v -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  lint:
+    desc: Run linters
+    cmds:
+      - go vet ./...
+      - go fmt ./...
+
+  docker-build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t {{.IMAGE_NAME}}:{{.IMAGE_TAG}} .
+
+  docker-push:
+    desc: Push Docker image to registry
+    cmds:
+      - docker tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} {{.REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
+      - docker push {{.REGISTRY}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
+
+  deploy:
+    desc: Deploy to Kubernetes
+    cmds:
+      - kubectl apply -f deploy/manifests/
+
+  undeploy:
+    desc: Remove from Kubernetes
+    cmds:
+      - kubectl delete -f deploy/manifests/
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -f webhook
+      - rm -f coverage.out coverage.html

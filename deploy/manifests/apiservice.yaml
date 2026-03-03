@@ -1,0 +1,16 @@
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1alpha1.acme.cpanel.webhook
+  labels:
+    app: cert-manager-webhook-cpanel
+  annotations:
+    cert-manager.io/inject-ca-from: "cert-manager/cert-manager-webhook-cpanel-webhook-tls"
+spec:
+  group: acme.cpanel.webhook
+  groupPriorityMinimum: 1000
+  versionPriority: 15
+  service:
+    name: cert-manager-webhook-cpanel
+    namespace: cert-manager
+  version: v1alpha1

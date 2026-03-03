@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-webhook-cpanel
+  namespace: cert-manager
+  labels:
+    app: cert-manager-webhook-cpanel
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    app: cert-manager-webhook-cpanel

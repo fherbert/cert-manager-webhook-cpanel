@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: example-tls
+  namespace: default
+spec:
+  secretName: example-tls
+  issuerRef:
+    name: letsencrypt-cpanel
+    kind: ClusterIssuer
+  dnsNames:
+  - example.com
+  - "*.example.com"

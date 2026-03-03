@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-cpanel-staging
+spec:
+  acme:
+    email: you@example.com
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-cpanel-staging-account-key
+    solvers:
+    - dns01:
+        webhook:
+          groupName: acme.cpanel.webhook
+          solverName: cpanel
+          config:
+            endpoint: "https://cpanel.example.com:2083"
+            username: "cpanel_username"
+            apiTokenSecretRef:
+              name: cpanel-api-token
+              key: token
+            ttl: 300

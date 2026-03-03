@@ -1,0 +1,4 @@
+deploy/
+*.md
+.git
+.gitignore
