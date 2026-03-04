@@ -9,14 +9,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
 type Client struct {
-	endpoint string
-	username string
-	token    string
-	client   *http.Client
+	endpoint      string
+	username      string
+	token         string
+	client        *http.Client
+	recordCache   map[string]time.Time // cache of recently added records (key: zone:name:value)
+	recordCacheMu sync.RWMutex
 }
 
 type Config struct {
@@ -27,9 +30,10 @@ type Config struct {
 
 func NewClient(cfg Config) *Client {
 	return &Client{
-		endpoint: strings.TrimSuffix(cfg.Endpoint, "/"),
-		username: cfg.Username,
-		token:    cfg.Token,
+		endpoint:    strings.TrimSuffix(cfg.Endpoint, "/"),
+		username:    cfg.Username,
+		token:       cfg.Token,
+		recordCache: make(map[string]time.Time),
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -46,7 +50,20 @@ type uapiResponse struct {
 }
 
 func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
-	// Check if record already exists (idempotent operation)
+	cacheKey := fmt.Sprintf("%s:%s:%s", zone, name, value)
+
+	// Check in-memory cache first (prevents race condition duplicates)
+	c.recordCacheMu.RLock()
+	if addedAt, exists := c.recordCache[cacheKey]; exists {
+		// Record was added recently (within last 60 seconds), consider it exists
+		if time.Since(addedAt) < 60*time.Second {
+			c.recordCacheMu.RUnlock()
+			return nil
+		}
+	}
+	c.recordCacheMu.RUnlock()
+
+	// Check if record already exists in DNS (idempotent operation)
 	existingRecords, err := c.fetchZoneRecords(zone, name, "TXT")
 	if err != nil {
 		return fmt.Errorf("failed to fetch existing records: %w", err)
@@ -55,7 +72,10 @@ func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
 	// Check if this exact record already exists
 	for _, record := range existingRecords {
 		if txtData, ok := record["txtdata"].(string); ok && txtData == value {
-			// Record already exists, nothing to do
+			// Record already exists, update cache and return
+			c.recordCacheMu.Lock()
+			c.recordCache[cacheKey] = time.Now()
+			c.recordCacheMu.Unlock()
 			return nil
 		}
 	}
@@ -82,10 +102,28 @@ func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
 	params.Set("serial", fmt.Sprintf("%d", serial))
 	params.Set("add", string(recordJSON))
 
-	return c.callUAPI("DNS", "mass_edit_zone", params)
+	err = c.callUAPI("DNS", "mass_edit_zone", params)
+	if err != nil {
+		return err
+	}
+
+	// Add to cache after successful addition
+	c.recordCacheMu.Lock()
+	c.recordCache[cacheKey] = time.Now()
+	// Clean up old cache entries (older than 5 minutes)
+	for k, t := range c.recordCache {
+		if time.Since(t) > 5*time.Minute {
+			delete(c.recordCache, k)
+		}
+	}
+	c.recordCacheMu.Unlock()
+
+	return nil
 }
 
 func (c *Client) DeleteTXTRecord(zone, name, value string) error {
+	cacheKey := fmt.Sprintf("%s:%s:%s", zone, name, value)
+
 	serial, err := c.getZoneSerial(zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone serial: %w", err)
@@ -102,19 +140,28 @@ func (c *Client) DeleteTXTRecord(zone, name, value string) error {
 			continue
 		}
 
-		if strings.TrimSpace(txtData) == strings.TrimSpace(value) {
-			lineIndex, ok := record["line_index"].(float64)
-			if !ok {
-				continue
-			}
-
-			params := url.Values{}
-			params.Set("zone", zone)
-			params.Set("serial", fmt.Sprintf("%d", serial))
-			params.Set("remove", fmt.Sprintf("%.0f", lineIndex))
-
-			return c.callUAPI("DNS", "mass_edit_zone", params)
+		if txtData != value {
+			continue
 		}
+
+		lineIndex, ok := record["line_index"].(float64)
+		if !ok {
+			continue
+		}
+
+		params := url.Values{}
+		params.Set("zone", zone)
+		params.Set("serial", fmt.Sprintf("%d", serial))
+		params.Set("remove", fmt.Sprintf("%d", int(lineIndex)))
+
+		if err := c.callUAPI("DNS", "mass_edit_zone", params); err != nil {
+			return err
+		}
+
+		// Remove from cache after successful deletion
+		c.recordCacheMu.Lock()
+		delete(c.recordCache, cacheKey)
+		c.recordCacheMu.Unlock()
 	}
 
 	return nil
