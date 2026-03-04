@@ -2,6 +2,7 @@ package cpanel
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,10 +38,10 @@ func NewClient(cfg Config) *Client {
 
 type uapiResponse struct {
 	Result struct {
-		Status   int                    `json:"status"`
-		Errors   []string               `json:"errors"`
-		Messages []string               `json:"messages"`
-		Data     map[string]interface{} `json:"data"`
+		Status   int             `json:"status"`
+		Errors   []string        `json:"errors"`
+		Messages []string        `json:"messages"`
+		Data     json.RawMessage `json:"data"`
 	} `json:"result"`
 }
 
@@ -114,12 +115,47 @@ func (c *Client) getZoneSerial(zone string) (int, error) {
 		return 0, err
 	}
 
-	serial, ok := resp.Result.Data["serial"].(float64)
-	if !ok {
-		return 0, fmt.Errorf("serial not found in response")
+	// parse_zone returns data as an array of zone records
+	// Find the SOA record which contains the serial in data_b64[2]
+	var parsed []interface{}
+	if err := json.Unmarshal(resp.Result.Data, &parsed); err != nil {
+		return 0, fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
-	return int(serial), nil
+	for _, item := range parsed {
+		record, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		recType, _ := record["record_type"].(string)
+		if recType == "SOA" {
+			// SOA record data is: [primary-ns, admin-email, serial, refresh, retry, expire, minimum]
+			data, ok := record["data_b64"].([]interface{})
+			if !ok || len(data) < 3 {
+				continue
+			}
+
+			// data[2] is the serial number (base64 encoded)
+			serialB64, ok := data[2].(string)
+			if !ok {
+				continue
+			}
+
+			// Decode base64
+			serialBytes, err := base64.StdEncoding.DecodeString(serialB64)
+			if err != nil {
+				continue
+			}
+
+			// Parse as integer
+			serial := 0
+			fmt.Sscanf(string(serialBytes), "%d", &serial)
+			return serial, nil
+		}
+	}
+
+	return 0, fmt.Errorf("SOA record not found in zone")
 }
 
 func (c *Client) fetchZoneRecords(zone, name, recordType string) ([]map[string]interface{}, error) {
@@ -131,9 +167,9 @@ func (c *Client) fetchZoneRecords(zone, name, recordType string) ([]map[string]i
 		return nil, err
 	}
 
-	parsed, ok := resp.Result.Data["parsed"].([]interface{})
-	if !ok {
-		return []map[string]interface{}{}, nil
+	var parsed []interface{}
+	if err := json.Unmarshal(resp.Result.Data, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
 	records := make([]map[string]interface{}, 0)
