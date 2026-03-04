@@ -135,7 +135,23 @@ func (c *CPanelDNSProviderSolver) getAPIToken(cfg *CPanelDNSProviderConfig, name
 
 func (c *CPanelDNSProviderSolver) extractZoneAndRecord(fqdn string, cfg *CPanelDNSProviderConfig) (string, string) {
 	fqdn = strings.TrimSuffix(fqdn, ".")
-	return cfg.Zone, fqdn
+	zone := strings.TrimSuffix(cfg.Zone, ".")
+
+	// Record name should be relative to the zone
+	// For _acme-challenge.home-assistant.herbert.org.nz with zone herbert.org.nz
+	// Return: _acme-challenge.home-assistant
+	if strings.HasSuffix(fqdn, "."+zone) {
+		recordName := strings.TrimSuffix(fqdn, "."+zone)
+		return zone, recordName
+	}
+
+	// If FQDN equals zone, record name is @ or empty
+	if fqdn == zone {
+		return zone, ""
+	}
+
+	// Fallback: return FQDN as-is (shouldn't happen with correct config)
+	return zone, fqdn
 }
 
 func loadConfig(cfgJSON *apiextensionsv1.JSON) (*CPanelDNSProviderConfig, error) {

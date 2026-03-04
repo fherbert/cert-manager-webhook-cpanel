@@ -103,21 +103,28 @@ func TestExtractZoneAndRecord(t *testing.T) {
 			fqdn:       "_acme-challenge.example.com.",
 			cfg:        &CPanelDNSProviderConfig{Zone: "example.com"},
 			wantZone:   "example.com",
-			wantRecord: "_acme-challenge.example.com",
+			wantRecord: "_acme-challenge",
 		},
 		{
 			name:       "subdomain with .com",
 			fqdn:       "_acme-challenge.sub.example.com.",
 			cfg:        &CPanelDNSProviderConfig{Zone: "example.com"},
 			wantZone:   "example.com",
-			wantRecord: "_acme-challenge.sub.example.com",
+			wantRecord: "_acme-challenge.sub",
 		},
 		{
 			name:       "multi-level TLD .org.nz",
 			fqdn:       "_acme-challenge.home-assistant.herbert.org.nz.",
 			cfg:        &CPanelDNSProviderConfig{Zone: "herbert.org.nz"},
 			wantZone:   "herbert.org.nz",
-			wantRecord: "_acme-challenge.home-assistant.herbert.org.nz",
+			wantRecord: "_acme-challenge.home-assistant",
+		},
+		{
+			name:       "zone apex record",
+			fqdn:       "herbert.org.nz.",
+			cfg:        &CPanelDNSProviderConfig{Zone: "herbert.org.nz"},
+			wantZone:   "herbert.org.nz",
+			wantRecord: "",
 		},
 	}
 
