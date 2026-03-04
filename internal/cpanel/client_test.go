@@ -27,12 +27,20 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestAddTXTRecord(t *testing.T) {
+	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/execute/DNS/parse_zone" {
+			callCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			// Serial 2024030401 in base64 is "MjAyNDAzMDQwMQ=="
-			w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}`))
+			if callCount == 1 {
+				// First call: check for existing records - return empty (no existing TXT records)
+				w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}`))
+			} else {
+				// Second call: get serial for adding record
+				w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}`))
+			}
 			return
 		}
 
@@ -72,6 +80,44 @@ func TestAddTXTRecord(t *testing.T) {
 	err := client.AddTXTRecord("example.com", "_acme-challenge.example.com", "test-token", 300)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestAddTXTRecordIdempotent(t *testing.T) {
+	massEditCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/execute/DNS/parse_zone" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			// Return existing TXT record with the same value
+			w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]},{"line_index":5,"dname":"_acme-challenge.example.com","record_type":"TXT","txtdata":"test-token","data":["test-token"]}]}`))
+			return
+		}
+
+		if r.URL.Path == "/execute/DNS/mass_edit_zone" {
+			massEditCalled = true
+			t.Error("mass_edit_zone should not be called when record already exists")
+			return
+		}
+
+		t.Errorf("unexpected path: %s", r.URL.Path)
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{
+		Endpoint: server.URL,
+		Username: "testuser",
+		Token:    "testtoken",
+	})
+
+	// Add the same record twice - second call should be idempotent
+	err := client.AddTXTRecord("example.com", "_acme-challenge.example.com", "test-token", 300)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if massEditCalled {
+		t.Error("mass_edit_zone was called when it shouldn't have been")
 	}
 }
 

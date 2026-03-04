@@ -46,6 +46,20 @@ type uapiResponse struct {
 }
 
 func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
+	// Check if record already exists (idempotent operation)
+	existingRecords, err := c.fetchZoneRecords(zone, name, "TXT")
+	if err != nil {
+		return fmt.Errorf("failed to fetch existing records: %w", err)
+	}
+
+	// Check if this exact record already exists
+	for _, record := range existingRecords {
+		if txtData, ok := record["txtdata"].(string); ok && txtData == value {
+			// Record already exists, nothing to do
+			return nil
+		}
+	}
+
 	serial, err := c.getZoneSerial(zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone serial: %w", err)
@@ -182,7 +196,9 @@ func (c *Client) fetchZoneRecords(zone, name, recordType string) ([]map[string]i
 		recType, _ := record["record_type"].(string)
 		recName, _ := record["dname"].(string)
 
-		if recType == recordType && (name == "" || strings.HasPrefix(recName, name)) {
+		// Match by exact name or if name is empty (fetch all records of this type)
+		nameMatches := name == "" || recName == name
+		if recType == recordType && nameMatches {
 			if data, ok := record["data"].([]interface{}); ok && len(data) > 0 {
 				if txtData, ok := data[0].(string); ok {
 					record["txtdata"] = txtData
