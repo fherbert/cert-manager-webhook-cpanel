@@ -32,7 +32,7 @@ func TestAddTXTRecord(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			// Serial 2024030401 in base64 is "MjAyNDAzMDQwMQ=="
-			w.Write([]byte(`{"result":{"status":1,"errors":[],"messages":[],"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}}`))
+			w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}`))
 			return
 		}
 
@@ -55,7 +55,7 @@ func TestAddTXTRecord(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"result":{"status":1,"errors":[],"messages":[],"data":{}}}`))
+			w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{}}`))
 			return
 		}
 
@@ -84,10 +84,10 @@ func TestDeleteTXTRecord(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			if callCount == 1 {
 				// First call for getZoneSerial - return SOA record
-				w.Write([]byte(`{"result":{"status":1,"errors":[],"messages":[],"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}}`))
+				w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]}]}`))
 			} else {
 				// Second call for fetchZoneRecords - return SOA and TXT records
-				w.Write([]byte(`{"result":{"status":1,"errors":[],"messages":[],"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]},{"line_index":5,"dname":"_acme-challenge.example.com","record_type":"TXT","data":["test-token"]}]}}`))
+				w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{},"data":[{"record_type":"SOA","data_b64":["bnMxLmV4YW1wbGUuY29tLg==","YWRtaW5AZXhhbXBsZS5jb20u","MjAyNDAzMDQwMQ==","3600","1800","1209600","86400"]},{"line_index":5,"dname":"_acme-challenge.example.com","record_type":"TXT","data":["test-token"]}]}`))
 			}
 			return
 		}
@@ -106,7 +106,7 @@ func TestDeleteTXTRecord(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"result":{"status":1,"errors":[],"messages":[],"data":{}}}`))
+			w.Write([]byte(`{"status":1,"errors":null,"messages":null,"warnings":null,"metadata":{}}`))
 			return
 		}
 

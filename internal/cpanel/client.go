@@ -37,12 +37,12 @@ func NewClient(cfg Config) *Client {
 }
 
 type uapiResponse struct {
-	Result struct {
-		Status   int             `json:"status"`
-		Errors   []string        `json:"errors"`
-		Messages []string        `json:"messages"`
-		Data     json.RawMessage `json:"data"`
-	} `json:"result"`
+	Status   int             `json:"status"`
+	Errors   []string        `json:"errors"`
+	Messages []string        `json:"messages"`
+	Metadata json.RawMessage `json:"metadata"`
+	Warnings []string        `json:"warnings"`
+	Data     json.RawMessage `json:"data"`
 }
 
 func (c *Client) AddTXTRecord(zone, name, value string, ttl int) error {
@@ -118,7 +118,7 @@ func (c *Client) getZoneSerial(zone string) (int, error) {
 	// parse_zone returns data as an array of zone records
 	// Find the SOA record which contains the serial in data_b64[2]
 	var parsed []interface{}
-	if err := json.Unmarshal(resp.Result.Data, &parsed); err != nil {
+	if err := json.Unmarshal(resp.Data, &parsed); err != nil {
 		return 0, fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
@@ -168,7 +168,7 @@ func (c *Client) fetchZoneRecords(zone, name, recordType string) ([]map[string]i
 	}
 
 	var parsed []interface{}
-	if err := json.Unmarshal(resp.Result.Data, &parsed); err != nil {
+	if err := json.Unmarshal(resp.Data, &parsed); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
@@ -231,13 +231,13 @@ func (c *Client) callUAPIWithResponse(module, function string, params url.Values
 		return nil, fmt.Errorf("failed to decode response: %w, body: %s", err, string(body))
 	}
 
-	if apiResp.Result.Status != 1 {
+	if apiResp.Status != 1 {
 		errMsg := "unknown error"
-		if len(apiResp.Result.Errors) > 0 {
-			errMsg = strings.Join(apiResp.Result.Errors, "; ")
+		if len(apiResp.Errors) > 0 {
+			errMsg = strings.Join(apiResp.Errors, "; ")
 		}
 		return nil, fmt.Errorf("cPanel API error: %s, status: %d, messages: %v, response body: %s",
-			errMsg, apiResp.Result.Status, apiResp.Result.Messages, string(body))
+			errMsg, apiResp.Status, apiResp.Messages, string(body))
 	}
 
 	return &apiResp, nil
