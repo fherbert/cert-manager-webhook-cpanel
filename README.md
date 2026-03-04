@@ -115,6 +115,20 @@ spec:
 | `apiTokenSecretRef.key` | Yes | Key in secret containing the token |
 | `ttl` | No | DNS record TTL in seconds (default: 300) |
 
+### Why is the `zone` parameter required?
+
+This webhook uses **cPanel UAPI** (the modern, recommended API) rather than the deprecated cPanel API 2. While some DNS automation tools like [certbot-dns-cpanel](https://github.com/certbot-cpanel/certbot-dns-cpanel) can automatically discover zones, they do so using the deprecated API 2's `ZoneEdit::fetchzones` function.
+
+According to [cPanel's official documentation](https://api.docs.cpanel.net/cpanel-api-2/cpanel-api-2-modules-zoneedit/cpanel-api-2-functions-zoneedit-fetchzones):
+
+> "We strongly recommend that you use UAPI instead of cPanel API 2. **However, no equivalent UAPI function exists.**"
+
+Since there is no UAPI equivalent for listing zones, we require you to explicitly specify the zone in your configuration. This is a one-time configuration per ClusterIssuer and ensures we use only the modern, supported API.
+
+**For multi-level TLDs** (like `.org.nz`, `.co.uk`), specify the full zone as registered in cPanel:
+- ✅ `zone: "herbert.org.nz"` (correct)
+- ❌ `zone: "org.nz"` (incorrect)
+
 ## Development
 
 ### Prerequisites
